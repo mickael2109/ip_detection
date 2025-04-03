@@ -1,0 +1,76 @@
+supprimer captue.pcap : rm ../captures/capture.pcap
+capture du trafic réseau : sudo tcpdump -i br-cyber_nat -w ../captures/capture.pcap
+
+lancer des attaques : docker exec -it attaquant_externe hydra -t 4 -L /wordlists/users_short.txt -P /wordlists/passwords_short.txt hote_principal ssh
+lancer une attauqe : docker exec -it attaquant_externe hydra -t 4 -l root -p password123 hote_principal ssh
+
+a) [SYN] (Synchronize)
+
+    Signification :
+        Le flag SYN est utilisé pour initier une connexion TCP.
+        C’est le premier paquet envoyé dans le processus de "handshake" (poignée de main) en trois étapes pour établir une connexion entre deux machines.
+    Contexte dans votre capture :
+        Paquet 1 : 20.0.0.4 → 20.0.0.2 39522 → 22 [SYN].
+            20.0.0.4 (attaquant_externe) envoie un paquet SYN à 20.0.0.2:22 (hote_principal) pour demander l’ouverture d’une connexion TCP sur le port SSH (22).
+        Paquet 23 : Une autre tentative [SYN] sur un port source différent (39524 → 22).
+    Pourquoi :
+        Chaque tentative de connexion SSH par hydra commence par un SYN pour établir une nouvelle connexion TCP.
+
+b) [ACK] (Acknowledgment)
+
+    Signification :
+        Le flag ACK est utilisé pour confirmer la réception d’un paquet.
+        Il est souvent envoyé en réponse à un SYN ou pour confirmer que des données ont été bien reçues.
+    Contexte dans votre capture :
+        Paquet 3 : 20.0.0.4 → 20.0.0.2 39522 → 22 [ACK].
+            Après que 20.0.0.2 a répondu avec un SYN+ACK (paquet 2, exclu), 20.0.0.4 envoie un ACK pour finaliser le handshake TCP.
+        Paquet 25 : 39524 → 22 [ACK] (nouvelle tentative).
+    Pourquoi :
+        Le ACK complète le handshake TCP et est utilisé tout au long de la connexion pour confirmer la réception des données.
+
+c) [FIN, ACK] (Finish + Acknowledgment)
+
+    Signification :
+        Le flag FIN indique qu’une machine veut fermer la connexion TCP.
+        Le flag ACK confirme la réception des données précédentes.
+        Ensemble, [FIN, ACK] signifie que la machine termine la connexion tout en confirmant les derniers paquets reçus.
+    Contexte dans votre capture :
+        Paquet 20 : 20.0.0.4 → 20.0.0.2 39522 → 22 [FIN, ACK].
+            20.0.0.4 termine la première connexion SSH après avoir réussi l’authentification.
+        Paquet 21 : 39522 → 22 [FIN, ACK].
+            Confirmation de la fermeture.
+    Pourquoi :
+        Une fois que hydra a terminé sa tentative (ici, une connexion réussie avec root:password123), il ferme la connexion TCP en envoyant un FIN.
+
+Résumé des flags
+
+    [SYN] : "Je veux ouvrir une connexion."
+    [ACK] : "J’ai bien reçu ton paquet, je confirme."
+    [FIN, ACK] : "J’ai fini, je ferme la connexion, et je confirme les derniers paquets."
+
+Handshake TCP complet (3 étapes)
+
+    20.0.0.4 → 20.0.0.2 : [SYN] (paquet 1).
+    20.0.0.2 → 20.0.0.4 : [SYN, ACK] (paquet 2, exclu).
+    20.0.0.4 → 20.0.0.2 : [ACK] (paquet 3).
+
+Fermeture TCP
+
+    20.0.0.4 → 20.0.0.2 : [FIN, ACK] (paquet 20).
+    20.0.0.2 → 20.0.0.4 : [ACK] (paquet 22, exclu).
+
+
+
+Rôle de machine_interne :
+
+    Simule un client légitime qui envoie des requêtes HTTP à hote_principal.
+    Introduit du trafic normal pour tester la détection d’anomalies.
+    Crée un environnement réaliste avec un mélange de trafic légitime et malveillant.
+
+Pourquoi classée anomaly ? :
+
+    Le modèle n’est pas entraîné pour reconnaître ses requêtes HTTP comme normales.
+
+Impact :
+
+    Ajoute 5 paquets anomaly dans vos logs, mais ne change pas fondamentalement la détection de l’attaque de 20.0.0.4.

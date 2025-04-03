@@ -18,24 +18,16 @@ services:
   attaquant_externe:
     image: ubuntu-reseau_image
     container_name: attaquant_externe
-    networks:
+    networks:   
       cybersec-net:
-        ipv4_address: 20.0.0.4
+        ipv4_address: 20.0.0.4  
     volumes:
       - ./wordlists:/wordlists
     command: ["bash", "-c", "apt update && apt install -y nmap hydra hping3 && while true; do nmap -sS hote_principal; hydra -L /wordlists/users.txt -P /wordlists/passwords.txt hote_principal ssh; sleep 60; done"]
-
-  # interface_web:
-  #   build: ./frontend
-  #   image: cybersec-frontend
-  #   ports:
-  #     - "8080:8080"
-  #   networks:
-  #     - cybersec-net
 
 networks:
   cybersec-net:
     driver: bridge
     ipam:
       config:
-        - subnet: 20.0.0.0/24
+        - subnet: 20.0.0.0/24  

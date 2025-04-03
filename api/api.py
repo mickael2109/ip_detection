@@ -31,6 +31,7 @@ stats = {
 data_lock = threading.Lock()
 blacklist_lock = threading.Lock()
 
+
 def process_pcap():
     while True:
         try:
@@ -70,7 +71,7 @@ def process_pcap():
         except subprocess.CalledProcessError as e:
             print(f"Erreur lors de l'exécution de tshark : {e}")
         except Exception as e:
-            print(f"Error processing pcap: {e}")
+            print(f"Error processing pcap: {e}")  
 
 
 def analyze_traffic():
@@ -152,21 +153,39 @@ def analyze_traffic():
 def update_blacklist(df):
     global blacklist
     with blacklist_lock:
-        # Filtrer les paquets malveillants
         malicious_df = df[df['prediction'] == 'anomaly']
-        # Compter les IPs sources qui initient des connexions suspectes
         malicious_ips = malicious_df[malicious_df['tcp.dstport'].isin([22, 80, 443, 3389])]['ip.src'].value_counts()
         current_time = datetime.now()
-        victim_ip = '20.0.0.2'  # IP connue de hote_principal
+        victim_ip = '20.0.0.2'
+        internal_ip = '20.0.0.3'  # Ignorer machine_interne
         for ip, count in malicious_ips.items():
-            if count >= 10 and ip != victim_ip:  # Exclure explicitement la victime
+            if count >= 10 and ip != victim_ip and ip != internal_ip:
                 blacklist[ip] = {
                     'timestamp': current_time.isoformat(),
                     'expires': (current_time + timedelta(minutes=5)).isoformat(),
                     'reason': 'Multiple malicious attempts'
                 }
                 print(f"Ajouté {ip} à blacklist avec {count} paquets")
-        print(f"IPs malveillantes détectées avec leur compte : {malicious_ips.to_dict()}")      
+        print(f"IPs malveillantes détectées avec leur compte : {malicious_ips.to_dict()}")
+        
+# def update_blacklist(df):
+#     global blacklist
+#     with blacklist_lock:
+#         # Filtrer les paquets malveillants
+#         malicious_df = df[df['prediction'] == 'anomaly']
+#         # Compter les IPs sources qui initient des connexions suspectes
+#         malicious_ips = malicious_df[malicious_df['tcp.dstport'].isin([22, 80, 443, 3389])]['ip.src'].value_counts()
+#         current_time = datetime.now()
+#         victim_ip = '20.0.0.2'  # IP connue de hote_principal
+#         for ip, count in malicious_ips.items():
+#             if count >= 10 and ip != victim_ip:  # Exclure explicitement la victime
+#                 blacklist[ip] = {
+#                     'timestamp': current_time.isoformat(),
+#                     'expires': (current_time + timedelta(minutes=5)).isoformat(),
+#                     'reason': 'Multiple malicious attempts'
+#                 }
+#                 print(f"Ajouté {ip} à blacklist avec {count} paquets")
+#         print(f"IPs malveillantes détectées avec leur compte : {malicious_ips.to_dict()}")      
         
 @app.route('/predict', methods=['POST'])
 def predict():
